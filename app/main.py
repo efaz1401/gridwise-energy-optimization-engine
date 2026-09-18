@@ -9,13 +9,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import ValidationError
 
 from lib import cache, guardrails, llm
 from lib.contracts import OptimizeResponse, ScenarioRequest
 from lib.optimizer import Bounds, solve, warmup
 from lib.validator import validate_interpretation, validate_plan
+
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -34,6 +37,14 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="GridWise", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(RequestValidationError)
@@ -55,11 +66,27 @@ async def health():
 
 
 DASHBOARD_FILE = os.path.join(os.path.dirname(__file__), "dashboard.html")
+FRONTEND_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+FRONTEND_INDEX = os.path.join(FRONTEND_DIST, "index.html")
+
+if os.path.exists(os.path.join(FRONTEND_DIST, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+
+
+@app.get("/favicon.svg")
+async def favicon():
+    fav = os.path.join(FRONTEND_DIST, "favicon.svg")
+    if os.path.exists(fav):
+        return FileResponse(fav)
+    return JSONResponse(status_code=404, content={"detail": "not found"})
 
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
+    if os.path.exists(FRONTEND_INDEX):
+        with open(FRONTEND_INDEX, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     if os.path.exists(DASHBOARD_FILE):
         with open(DASHBOARD_FILE, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())

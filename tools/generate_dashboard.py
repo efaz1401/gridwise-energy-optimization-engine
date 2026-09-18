@@ -1,4 +1,4 @@
-"""Generate the standalone and served visual dashboard for GridWise."""
+"""Generate the standalone and served visual dashboard for GridWise with Interactive Playground."""
 from __future__ import annotations
 
 import json
@@ -13,7 +13,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GridWise Energy Optimization Visualizer</title>
+  <title>GridWise Energy Optimization Visualizer & Playground</title>
   <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
   <style>
     :root {
@@ -45,7 +45,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-lg backdrop-blur">
       <div>
         <div class="flex items-center gap-3">
-          <div class="p-2 bg-gradient-to-tr from-amber-500 to-emerald-500 rounded-xl shadow-md">
+          <div class="p-2.5 bg-gradient-to-tr from-amber-500 to-emerald-500 rounded-xl shadow-md">
             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
             </svg>
@@ -53,26 +53,106 @@ HTML_TEMPLATE = """<!DOCTYPE html>
           <div>
             <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
               GridWise
-              <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium border border-emerald-500/30">Optimal Dispatch</span>
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-medium border border-emerald-500/30">Interactive Optimizer</span>
             </h1>
             <p class="text-sm text-slate-400">LLM-Assisted Campus Energy Optimization & LP Dispatch</p>
           </div>
         </div>
       </div>
 
-      <!-- Case Selector -->
-      <div class="flex items-center gap-3">
-        <label for="caseSelect" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Scenario:</label>
-        <select id="caseSelect" class="bg-slate-900 border border-slate-700 text-slate-100 font-medium rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition">
-          <!-- Populated by JS -->
-        </select>
-        <button id="refreshBtn" onclick="renderCurrentCase()" class="p-2 bg-slate-700/80 hover:bg-slate-700 text-slate-300 rounded-xl transition" title="Reload View">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
+      <!-- Mode Tabs -->
+      <div class="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-700 text-xs font-semibold">
+        <button id="tabPublic" onclick="switchTab('public')" class="px-3.5 py-2 rounded-lg bg-amber-500 text-slate-900 font-bold transition shadow">
+          Benchmark Cases
+        </button>
+        <button id="tabCustom" onclick="switchTab('custom')" class="px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition">
+          Custom Playground
         </button>
       </div>
     </header>
+
+    <!-- Public Case Selector Bar (Shown in Benchmark Mode) -->
+    <div id="publicControls" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/60 border border-slate-700/60 rounded-xl p-3.5">
+      <div class="flex items-center gap-3">
+        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Select Scenario:</span>
+        <select id="caseSelect" class="bg-slate-900 border border-slate-700 text-slate-100 font-medium rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none transition">
+          <!-- Populated by JS -->
+        </select>
+      </div>
+      <div class="text-xs text-slate-400">
+        10 worked test cases with organizer ground truth references.
+      </div>
+    </div>
+
+    <!-- Custom Scenario Input Panel (Shown in Custom Mode) -->
+    <div id="customControls" class="hidden bg-slate-800/80 border border-amber-500/40 rounded-2xl p-5 shadow-xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-700/80 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-amber-300 flex items-center gap-2">
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Live Custom Scenario Playground
+          </h2>
+          <p class="text-xs text-slate-400">Enter your own natural-language operator notes and battery specs to run live through the LLM + HiGHS solver.</p>
+        </div>
+        <span class="text-[11px] px-2.5 py-1 rounded-full bg-slate-700 text-slate-300 font-mono">POST /optimize-energy</span>
+      </div>
+
+      <!-- Notes Input Area -->
+      <div class="space-y-2">
+        <label class="text-xs font-semibold uppercase tracking-wider text-slate-300">Operator Notes (1–3 lines):</label>
+        <div class="space-y-2">
+          <input id="customNote1" type="text" value="PV generation will drop to about 25% between 12:00 and 15:00." placeholder="Note 1 (e.g. PV reduction, maintenance, test...)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:border-amber-500 focus:outline-none transition">
+          <input id="customNote2" type="text" value="Keep at least 50% of the battery capacity stored from 6 PM until 9 PM." placeholder="Note 2 (e.g. reserve, no charge, max grid...)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:border-amber-500 focus:outline-none transition">
+          <input id="customNote3" type="text" value="The library is extending study hours tomorrow." placeholder="Note 3 (optional, e.g. unrelated distractor note)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:border-amber-500 focus:outline-none transition">
+        </div>
+      </div>
+
+      <!-- Battery Specs Row -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+        <div>
+          <label class="text-[11px] font-medium text-slate-400">Capacity (kWh)</label>
+          <input id="customCap" type="number" value="200" min="10" step="10" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono">
+        </div>
+        <div>
+          <label class="text-[11px] font-medium text-slate-400">Initial (kWh)</label>
+          <input id="customInit" type="number" value="100" min="0" step="10" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono">
+        </div>
+        <div>
+          <label class="text-[11px] font-medium text-slate-400">Min Reserve (kWh)</label>
+          <input id="customMin" type="number" value="20" min="0" step="5" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono">
+        </div>
+        <div>
+          <label class="text-[11px] font-medium text-slate-400">Max Charge (kWh/h)</label>
+          <input id="customMaxC" type="number" value="50" min="5" step="5" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono">
+        </div>
+        <div>
+          <label class="text-[11px] font-medium text-slate-400">Max Discharge (kWh/h)</label>
+          <input id="customMaxD" type="number" value="50" min="5" step="5" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono">
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <div class="flex items-center justify-between pt-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400">Base Demand/Solar Profile:</span>
+          <select id="customBaseProfile" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-1">
+            <option value="0">SAMPLE-01 Profile (Monsoon Day)</option>
+            <option value="1">SAMPLE-02 Profile (High Solar)</option>
+            <option value="2">SAMPLE-03 Profile (Winter Load)</option>
+            <option value="5">SAMPLE-06 Profile (Summer Peak)</option>
+          </select>
+        </div>
+        <button id="runCustomBtn" onclick="executeCustomScenario()" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-2">
+          <span>Run Live Optimization</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+          </svg>
+        </button>
+      </div>
+      <div id="customStatus" class="hidden text-xs py-2 px-3 rounded-lg"></div>
+    </div>
 
     <!-- Top KPI Grid -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -210,6 +290,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <script>
     const CASES = __CASES_JSON__;
+    let currentPayload = null;
+    let currentResponse = null;
 
     const caseSelect = document.getElementById("caseSelect");
     CASES.forEach((c, idx) => {
@@ -220,14 +302,107 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     });
 
     caseSelect.addEventListener("change", () => {
-      renderCurrentCase();
+      loadBenchmarkCase();
     });
 
-    function renderCurrentCase() {
+    function switchTab(mode) {
+      const btnP = document.getElementById("tabPublic");
+      const btnC = document.getElementById("tabCustom");
+      const ctrlP = document.getElementById("publicControls");
+      const ctrlC = document.getElementById("customControls");
+
+      if (mode === "public") {
+        btnP.className = "px-3.5 py-2 rounded-lg bg-amber-500 text-slate-900 font-bold transition shadow";
+        btnC.className = "px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition";
+        ctrlP.classList.remove("hidden");
+        ctrlC.classList.add("hidden");
+        loadBenchmarkCase();
+      } else {
+        btnC.className = "px-3.5 py-2 rounded-lg bg-amber-500 text-slate-900 font-bold transition shadow";
+        btnP.className = "px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition";
+        ctrlC.classList.remove("hidden");
+        ctrlP.classList.add("hidden");
+      }
+    }
+
+    function loadBenchmarkCase() {
       const caseIdx = parseInt(caseSelect.value, 10);
       const data = CASES[caseIdx];
-      const inp = data.input;
-      const out = data.expected_output;
+      currentPayload = data.input;
+      currentResponse = data.expected_output;
+      renderCurrentData();
+    }
+
+    async function executeCustomScenario() {
+      const statusDiv = document.getElementById("customStatus");
+      const runBtn = document.getElementById("runCustomBtn");
+      
+      const note1 = document.getElementById("customNote1").value.trim();
+      const note2 = document.getElementById("customNote2").value.trim();
+      const note3 = document.getElementById("customNote3").value.trim();
+      const notes = [note1, note2, note3].filter(n => n.length > 0);
+
+      if (notes.length === 0) {
+        alert("Please enter at least one operator note.");
+        return;
+      }
+
+      const cap = parseFloat(document.getElementById("customCap").value) || 200;
+      const init = parseFloat(document.getElementById("customInit").value) || 100;
+      const minR = parseFloat(document.getElementById("customMin").value) || 20;
+      const maxC = parseFloat(document.getElementById("customMaxC").value) || 50;
+      const maxD = parseFloat(document.getElementById("customMaxD").value) || 50;
+      const baseIdx = parseInt(document.getElementById("customBaseProfile").value, 10) || 0;
+
+      const baseInput = CASES[baseIdx].input;
+      const req = {
+        scenario_id: "CUSTOM-PLAYGROUND",
+        operator_notes: notes,
+        hours: JSON.parse(JSON.stringify(baseInput.hours)),
+        battery: {
+          capacity_kwh: cap,
+          initial_energy_kwh: init,
+          minimum_energy_kwh: minR,
+          max_charge_kwh_per_hour: maxC,
+          max_discharge_kwh_per_hour: maxD
+        }
+      };
+
+      statusDiv.className = "text-xs py-2 px-3 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 block";
+      statusDiv.textContent = "Calling /optimize-energy with LLM interpretation & HiGHS LP solver...";
+      runBtn.disabled = true;
+      runBtn.classList.add("opacity-50");
+
+      try {
+        const resp = await fetch("/optimize-energy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(req)
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail ? JSON.stringify(errData.detail) : `HTTP ${resp.status}`);
+        }
+        const resData = await resp.json();
+        currentPayload = req;
+        currentResponse = resData;
+        renderCurrentData();
+
+        statusDiv.className = "text-xs py-2 px-3 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 block";
+        statusDiv.textContent = `Success! Plan calculated in optimal cost: ${resData.total_cost_bdt.toFixed(2)} BDT`;
+      } catch (err) {
+        statusDiv.className = "text-xs py-2 px-3 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 block";
+        statusDiv.textContent = `Error: ${err.message}. Ensure backend server is running.`;
+      } finally {
+        runBtn.disabled = false;
+        runBtn.classList.remove("opacity-50");
+      }
+    }
+
+    function renderCurrentData() {
+      if (!currentPayload || !currentResponse) return;
+      const inp = currentPayload;
+      const out = currentResponse;
 
       // Update KPIs
       document.getElementById("kpiCost").textContent = `${out.total_cost_bdt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} BDT`;
@@ -587,10 +762,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         const bH = (t / maxT) * chartH;
         const y = padT + chartH - bH;
 
-        // Color tariff bar based on battery decision:
-        // Charge when low tariff -> purple badge
-        // Discharge when high tariff -> emerald badge
-        // Else neutral amber/slate
         if (act === "charge") ctx.fillStyle = "#a855f7";
         else if (act === "discharge") ctx.fillStyle = "#10b981";
         else ctx.fillStyle = "#475569";
@@ -606,10 +777,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     // Initial Render
     window.addEventListener("DOMContentLoaded", () => {
-      renderCurrentCase();
+      loadBenchmarkCase();
     });
     window.addEventListener("resize", () => {
-      renderCurrentCase();
+      renderCurrentData();
     });
   </script>
 </body>
