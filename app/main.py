@@ -100,6 +100,13 @@ async def _interpret(notes: list[str], battery: dict) -> tuple[list[dict], str]:
             log.warning("llm budget exceeded")
             raw, provider = [], "timeout"
 
+        if not raw:
+            from lib.fallback import heuristic_extract
+            fallback_items = heuristic_extract([n for _, n in missing], battery)
+            for item, (orig_idx, _) in zip(fallback_items, missing):
+                item["note_index"] = orig_idx
+            raw = fallback_items
+
     merged: list[dict] = []
     for i, c in enumerate(cached):
         if c is not None:
