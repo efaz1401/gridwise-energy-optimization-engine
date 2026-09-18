@@ -1,6 +1,7 @@
 """Provider calls. Gemini primary, Groq secondary, degraded mode last."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ log = logging.getLogger("gridwise.llm")
 
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GROQ_KEY = os.getenv("GROQ_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 OFFLINE = os.getenv("OFFLINE_FALLBACK", "0") == "1"
 TIMEOUT = float(os.getenv("LLM_TIMEOUT_SECONDS", "12"))
@@ -94,7 +95,7 @@ async def extract(notes: list[tuple[int, str]],
     prompt = build_prompt(notes, battery)
     async with httpx.AsyncClient() as client:
         for name in order:
-            for attempt in (1, 2):
+            for attempt in (1, 2, 3):
                 try:
                     fn = _gemini if name == "gemini" else _groq
                     data = await fn(client, prompt)
@@ -102,6 +103,11 @@ async def extract(notes: list[tuple[int, str]],
                     if isinstance(items, list) and items:
                         return items, name
                     log.warning("provider %s returned no interpretations", name)
+                except httpx.HTTPStatusError as exc:
+                    log.warning("provider %s attempt %d failed: %s (status %s)",
+                                name, attempt, type(exc).__name__, exc.response.status_code)
+                    if exc.response.status_code in (429, 500, 502, 503, 504):
+                        await asyncio.sleep(2.0 * attempt)
                 except Exception as exc:  # noqa: BLE001 - never propagate
                     log.warning("provider %s attempt %d failed: %s",
                                 name, attempt, type(exc).__name__)

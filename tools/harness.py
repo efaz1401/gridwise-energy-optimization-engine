@@ -156,6 +156,7 @@ def run_paraphrase(url: str) -> bool:
     base = CASES[0]["input"]
     passed = 0
     for note, cap, want_type, want_hours, key, val in PARAPHRASES:
+        time.sleep(2.0)
         req = json.loads(json.dumps(base))
         req["scenario_id"] = "PARA"
         req["operator_notes"] = [note]

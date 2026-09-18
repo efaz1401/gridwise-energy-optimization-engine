@@ -91,7 +91,7 @@ environment variables set at all.
 |---|---|---|
 | `GEMINI_API_KEY` | one of these | primary interpreter |
 | `GROQ_API_KEY` | one of these | failover interpreter |
-| `GEMINI_MODEL` | no | default `gemini-2.0-flash` |
+| `GEMINI_MODEL` | no | default `gemini-3-flash-preview` |
 | `GROQ_MODEL` | no | default `llama-3.3-70b-versatile` |
 | `PORT` | no | default 8080 |
 | `LLM_TIMEOUT_SECONDS` | no | per-call timeout, default 12 |
@@ -101,7 +101,7 @@ environment variables set at all.
 
 ## Model, solver, dependencies
 
-Interpreter: Google Gemini 2.0 Flash via REST with `responseSchema`,
+Interpreter: Google Gemini 3 Flash Preview via REST with `responseSchema`,
 `temperature=0`; failover to Groq Llama 3.3 70B with JSON mode.
 Solver: SciPy `linprog` with HiGHS (chosen over PuLP/CBC to avoid a bundled
 solver binary that can fail on ARM judging machines).

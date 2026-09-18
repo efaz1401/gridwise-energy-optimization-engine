@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("gridwise")
 
-LLM_BUDGET = float(os.getenv("LLM_BUDGET_SECONDS", "14"))
+LLM_BUDGET = float(os.getenv("LLM_BUDGET_SECONDS", "20"))
 
 
 @asynccontextmanager
@@ -95,9 +95,10 @@ async def _interpret(notes: list[str], battery: dict) -> tuple[list[dict], str]:
     merged.extend(r for r in raw if isinstance(r, dict))
 
     entries = guardrails.normalize(merged, notes, battery)
-    for i, e in enumerate(entries):
-        if cached[i] is None:
-            cache.put(keys[i], e)
+    if provider not in ("degraded", "timeout"):
+        for i, e in enumerate(entries):
+            if cached[i] is None:
+                cache.put(keys[i], e)
     return entries, provider
 
 

@@ -27,7 +27,7 @@ _REDUCTION = re.compile(
     r"(\d{1,3}(?:\.\d+)?)\s*(?:%|percent)\s*(?:of\s+a\s+)?"
     r"(?:reduction|drop|decrease|decline|loss|less|lower|cut)", re.I)
 _REDUCTION_ALT = re.compile(
-    r"(?:reduc\w*|drop\w*|decreas\w*|down|cut|fall\w*|lower\w*)\D{0,20}?"
+    r"(?:reduc\w*|drop\w*|decreas\w*|down|cut|fall\w*|lower\w*)\s+(?:by|of)\s*"
     r"(\d{1,3}(?:\.\d+)?)\s*(?:%|percent)", re.I)
 _REMAIN = re.compile(
     r"(?:to|at|about|around|roughly|approximately|only|treated as|leave\w*)"
